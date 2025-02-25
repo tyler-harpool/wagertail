@@ -1,4 +1,5 @@
 import * as React from "react"
+import Image from "next/image"
 
 import { cn } from "@/lib/utils"
 
@@ -7,9 +8,14 @@ const Card = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElemen
 ))
 Card.displayName = "Card"
 
-const CardHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
-  ({ className, ...props }, ref) => (
-    <div ref={ref} className={cn("flex flex-col space-y-1.5 p-6", className)} {...props} />
+const CardHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement> & { logo?: string }>(
+  ({ className, logo, ...props }, ref) => (
+    <div ref={ref} className={cn("flex items-center space-x-4 p-6", className)} {...props}>
+      {logo && (
+        <Image src={logo || "/placeholder.svg"} alt="Team Logo" width={40} height={40} className="rounded-full" />
+      )}
+      <div className="flex flex-col space-y-1.5">{props.children}</div>
+    </div>
   ),
 )
 CardHeader.displayName = "CardHeader"

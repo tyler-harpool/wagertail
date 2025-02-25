@@ -101,7 +101,6 @@ export default function OddsList() {
         }
 
         const result = await response.json()
-        console.log("Received data:", result)
 
         if (result.error) {
           throw new Error(result.error)
@@ -174,14 +173,14 @@ export default function OddsList() {
   return (
     <ErrorBoundary>
       <div className="container mx-auto px-4 py-8">
-        <h1 className="text-2xl font-bold mb-6 text-slate-900 dark:text-slate-100">Sports List</h1>
+        <h1 className="text-4xl font-bold mb-6 text-abyss-dark dark:text-sea-light">Sports List</h1>
 
-        <div className="mb-6">
+        <div className="mb-8">
           <SportCategoryIcons onSelectCategory={handleCategorySelect} />
         </div>
 
         {isStaleData && (
-          <Alert className="mb-4">
+          <Alert className="mb-6">
             <AlertTriangle className="h-4 w-4" />
             <AlertTitle>Notice</AlertTitle>
             <AlertDescription>
@@ -198,31 +197,33 @@ export default function OddsList() {
             <AlertTitle>Error</AlertTitle>
             <AlertDescription>{error}</AlertDescription>
           </Alert>
-        ) : filteredSports.length > 0 ? (
-          <div className="space-y-4 sm:space-y-0 sm:grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        ) : filteredSports && filteredSports.length > 0 ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredSports.map((sport) => (
               <Card
                 key={sport.key}
                 className={`${
                   popularAmericanSports.includes(sport.key) || prestigiousSoccerLeagues.includes(sport.key)
-                    ? "border-purple"
-                    : "border-slate-200 dark:border-slate-700"
-                } hover:shadow-md transition-shadow duration-200 bg-white dark:bg-slate-800 cursor-pointer`}
+                    ? "border-coral"
+                    : "border-sea dark:border-sea-dark"
+                } hover:shadow-lg transition-all duration-300 bg-white dark:bg-abyss-dark cursor-pointer`}
                 onClick={() => handleSportClick(sport.key)}
               >
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-lg text-slate-900 dark:text-slate-100">{sport.title}</CardTitle>
-                  <CardDescription className="text-sm text-slate-500 dark:text-slate-400">
-                    {sport.group}
-                  </CardDescription>
+                <CardHeader className="pb-2 bg-sea dark:bg-abyss text-white">
+                  <CardTitle className="text-xl">{sport.title}</CardTitle>
+                  <CardDescription className="text-sm text-sea-light">{sport.group}</CardDescription>
                 </CardHeader>
-                <CardContent>
-                  <p className="text-sm mb-2 text-slate-600 dark:text-slate-300">{sport.description}</p>
+                <CardContent className="pt-4">
+                  <p className="text-sm mb-4 text-slate-600 dark:text-slate-300">{sport.description}</p>
                   <div className="flex flex-wrap gap-2">
-                    <Badge variant={sport.active ? "default" : "secondary"}>
+                    <Badge variant={sport.active ? "default" : "secondary"} className="text-xs bg-coral text-white">
                       {sport.active ? "Active" : "Inactive"}
                     </Badge>
-                    {sport.has_outrights && <Badge variant="outline">Tournament Winner Bets</Badge>}
+                    {sport.has_outrights && (
+                      <Badge variant="outline" className="text-xs border-sand text-sand-dark">
+                        Tournament Winner Bets
+                      </Badge>
+                    )}
                   </div>
                 </CardContent>
               </Card>

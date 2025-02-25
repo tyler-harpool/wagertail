@@ -67,10 +67,8 @@
     "next-auth": "latest",
     "jose": "latest",
     "bcryptjs": "latest",
-    "@tanstack/react-query-devtools": "latest",
     "tailwindcss": "latest",
-    "fs": "latest",
-    "path": "latest"
+    "@tanstack/react-query-devtools": "latest"
   },
   "devDependencies": {
     "@types/node": "^22",

@@ -1,71 +1,66 @@
 import { NextResponse } from "next/server"
-import { readCache, writeCache } from "@/lib/cache"
-
-const CACHE_DURATION = 24 * 60 * 60 * 1000 // 24 hours in milliseconds
+import { sendAlertToTeam } from "@/lib/notifications"
 
 export async function GET(request: Request) {
+  console.log("GET /api/games: Handler called")
   const { searchParams } = new URL(request.url)
-  const sport = searchParams.get("sport")
-
-  if (!sport) {
-    return NextResponse.json({ error: "Sport parameter is required" }, { status: 400 })
-  }
-
-  console.log(`GET /api/games: Fetching games for sport: ${sport}`)
+  const sport = searchParams.get("sport") || "upcoming"
 
   try {
-    // Try to read from cache first
-    const cachedData = readCache<{ data: any[]; timestamp: number }>(`games_${sport}`)
-    if (cachedData && Date.now() - cachedData.timestamp < CACHE_DURATION) {
-      console.log(`Returning cached games data for ${sport}`)
-      return NextResponse.json(cachedData.data)
-    }
-
     const apiKey = process.env.ODDS_API_KEY
     if (!apiKey) {
       console.error("ODDS_API_KEY is not set")
-      return NextResponse.json({ error: "API key is not configured" }, { status: 500 })
+      await sendAlertToTeam("ODDS_API_KEY is missing in production")
+      return NextResponse.json({ error: "API configuration error" }, { status: 500 })
     }
 
-    const response = await fetch(
-      `https://api.the-odds-api.com/v4/sports/${sport}/odds/?apiKey=${apiKey}&regions=us&markets=h2h&oddsFormat=american`,
-    )
+    const apiUrl = `https://api.the-odds-api.com/v4/sports/${sport}/odds/?apiKey=${apiKey}&regions=us&markets=h2h,spreads,totals&bookmakers=draftkings&oddsFormat=american`
+
+    console.log(`Fetching data from Odds API for ${sport}`)
+    const response = await fetch(apiUrl, {
+      headers: {
+        Accept: "application/json",
+        "Cache-Control": "no-cache, no-store, must-revalidate",
+        Pragma: "no-cache",
+        Expires: "0",
+      },
+    })
 
     if (!response.ok) {
-      const errorData = await response.json()
-      console.error("API Error response:", errorData)
+      const errorBody = await response.text()
+      console.error(`API Error (${response.status}):`, errorBody)
 
-      if (errorData.error_code === "OUT_OF_USAGE_CREDITS") {
-        // If we're out of credits, return cached data if available, otherwise return an error
-        if (cachedData) {
-          console.log(`Returning stale cached data for ${sport} due to API quota limit`)
-          return NextResponse.json(cachedData.data, {
-            headers: { "X-Data-Source": "cache", "X-Cache-Date": new Date(cachedData.timestamp).toISOString() },
-          })
-        } else {
-          return NextResponse.json({ error: "API quota reached. Please try again later." }, { status: 429 })
-        }
+      if (response.status === 401 || response.status === 403) {
+        await sendAlertToTeam(`API authentication failed: ${errorBody}`)
+        return NextResponse.json({ error: "API authentication failed" }, { status: 401 })
       }
 
-      return NextResponse.json(
-        { error: errorData.message || "An error occurred while fetching data" },
-        { status: response.status },
-      )
+      if (response.status === 429) {
+        await sendAlertToTeam("Odds API rate limit exceeded")
+        return NextResponse.json({ error: "Rate limit exceeded. Please try again later." }, { status: 429 })
+      }
+
+      throw new Error(`API responded with status: ${response.status}`)
     }
 
-    const games = await response.json()
-    console.log(`Fetched ${games.length} games for ${sport}`)
+    const data = await response.json()
 
-    // Cache the fetched data
-    writeCache(`games_${sport}`, { data: games, timestamp: Date.now() })
+    if (!Array.isArray(data)) {
+      console.error("Unexpected API response format:", data)
+      return NextResponse.json({ error: "Invalid API response format" }, { status: 500 })
+    }
 
-    return NextResponse.json(games)
+    return NextResponse.json(data)
   } catch (error) {
-    console.error(`Error in GET /api/games for ${sport}:`, error instanceof Error ? error.message : String(error))
-    return NextResponse.json(
-      { error: `Failed to fetch games: ${error instanceof Error ? error.message : String(error)}` },
-      { status: 500 },
-    )
+    console.error("Error in GET /api/games:", error)
+    let errorMessage = "Failed to fetch games data. Please try again later."
+    if (error instanceof Error) {
+      errorMessage = error.message
+    } else if (typeof error === "string") {
+      errorMessage = error
+    }
+    await sendAlertToTeam(`Error in /api/games: ${errorMessage}`)
+    return NextResponse.json({ error: errorMessage }, { status: 500 })
   }
 }
 

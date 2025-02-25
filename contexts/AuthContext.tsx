@@ -2,12 +2,9 @@
 
 import type React from "react"
 import { createContext, useState, useEffect, useContext } from "react"
-
-interface User {
-  id: string
-  email: string
-  name?: string
-}
+import { useRouter } from "next/navigation"
+import { previewAuth, productionAuth } from "@/lib/authUtils"
+import type { User } from "@/types/user"
 
 interface AuthContextType {
   user: User | null
@@ -24,80 +21,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const router = useRouter()
+  const isPreview = process.env.NEXT_PUBLIC_VERCEL_ENV === "preview"
+  const auth = isPreview ? previewAuth : productionAuth
 
   useEffect(() => {
-    const checkLoggedIn = async () => {
+    const checkAuth = async () => {
       try {
-        console.log("Checking auth status...")
-        const response = await fetch("/api/auth/check", {
-          headers: {
-            Accept: "application/json",
-          },
-          credentials: "include",
-        })
-        console.log("Auth check response status:", response.status)
-
-        if (!response.ok) {
-          if (response.status === 429) {
-            console.error("Rate limit exceeded during auth check")
-            setError("Too many requests. Please try again later.")
-          } else if (response.status === 500) {
-            console.error("Internal server error during auth check")
-            setError("An unexpected error occurred. Please try again later.")
-          } else {
-            const errorText = await response.text()
-            console.error("Auth check error response:", errorText)
-            throw new Error(`HTTP error! status: ${response.status}, body: ${errorText}`)
-          }
-          setUser(null)
-        } else {
-          const data = await response.json()
-          console.log("Auth check response data:", data)
-
-          if (data.authenticated && data.user) {
-            setUser(data.user)
-          } else {
-            setUser(null)
-          }
-        }
+        const authenticatedUser = await auth.checkAuth()
+        setUser(authenticatedUser)
       } catch (error) {
-        console.error("Error checking auth status:", error instanceof Error ? error.message : String(error))
+        console.error("Auth check error:", error)
         setUser(null)
-        setError("Failed to check authentication status. Please try again later.")
+        setError("Authentication check failed")
       } finally {
         setLoading(false)
       }
     }
 
-    checkLoggedIn()
-  }, [])
+    checkAuth()
+  }, [auth])
 
   const login = async (email: string, password: string) => {
     setLoading(true)
     setError(null)
     try {
-      const response = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-        credentials: "include",
-      })
-
-      if (!response.ok) {
-        if (response.status === 429) {
-          throw new Error("Too many requests. Please try again later.")
-        }
-        const errorData = await response.json()
-        console.error("Login error response:", errorData)
-        throw new Error(errorData.error || `HTTP error! status: ${response.status}`)
-      }
-
-      const data = await response.json()
-      setUser(data.user)
+      const authenticatedUser = await auth.login(email, password)
+      setUser(authenticatedUser)
+      router.push("/")
     } catch (error) {
-      console.error("Login error:", error instanceof Error ? error.message : String(error))
-      setError(error instanceof Error ? error.message : "An unknown error occurred")
-      throw error
+      console.error("Login error:", error)
+      setError(error instanceof Error ? error.message : "Login failed")
     } finally {
       setLoading(false)
     }
@@ -106,17 +60,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = async () => {
     setLoading(true)
     try {
-      const response = await fetch("/api/auth/logout", {
-        method: "POST",
-        credentials: "include",
-      })
-      if (!response.ok) {
-        throw new Error("Logout failed")
-      }
+      await auth.logout()
       setUser(null)
+      router.push("/auth/signin")
     } catch (error) {
-      console.error("Logout error:", error instanceof Error ? error.message : String(error))
-      setError(error instanceof Error ? error.message : "An unknown error occurred")
+      console.error("Logout error:", error)
+      setError(error instanceof Error ? error.message : "Logout failed")
     } finally {
       setLoading(false)
     }

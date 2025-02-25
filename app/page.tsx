@@ -33,18 +33,27 @@ export default function Home() {
   }
 
   if (!user) {
-    return (
-      <main className="flex flex-col items-center justify-center min-h-screen">
-        <div className="flex items-center mb-8">
-          <WhaleLogo className="w-12 h-12 mr-4 text-purple-600" />
-          <h1 className="text-4xl font-bold">Welcome to Wager Tail</h1>
-        </div>
-        <p className="mb-4">Please sign in to view odds and place bets.</p>
-        <Button onClick={() => router.push("/auth/signin")}>Sign In</Button>
-      </main>
-    )
+    return <UnauthenticatedView />
   }
 
+  return <AuthenticatedView />
+}
+
+function UnauthenticatedView() {
+  const router = useRouter()
+  return (
+    <main className="flex flex-col items-center justify-center min-h-screen">
+      <div className="flex items-center mb-8">
+        <WhaleLogo className="w-12 h-12 mr-4 text-purple-600" />
+        <h1 className="text-4xl font-bold">Welcome to Wager Tail</h1>
+      </div>
+      <p className="mb-4">Please sign in to view odds and place bets.</p>
+      <Button onClick={() => router.push("/auth/signin")}>Sign In</Button>
+    </main>
+  )
+}
+
+function AuthenticatedView() {
   return (
     <main className="container mx-auto px-4 py-8">
       <h1 className="text-3xl font-bold mb-6">Latest Odds</h1>

@@ -1,28 +1,69 @@
-import fs from "fs"
-import path from "path"
+const CACHE_DURATION = 15 * 60 // 15 minutes in seconds
 
-const CACHE_DIR = path.join(process.cwd(), ".cache")
-const CACHE_FILE = path.join(CACHE_DIR, "sports_cache.json")
+export async function readCache<T>(key: string): Promise<T | null> {
+  try {
+    if (!process.env.UPSTASH_REDIS_REST_URL || !process.env.UPSTASH_REDIS_REST_TOKEN) {
+      console.error("Upstash Redis environment variables are missing")
+      return null
+    }
 
-interface CacheData<T> {
-  timestamp: number
-  data: T
-}
+    const response = await fetch(`${process.env.UPSTASH_REDIS_REST_URL}/get/${key}`, {
+      headers: {
+        Authorization: `Bearer ${process.env.UPSTASH_REDIS_REST_TOKEN}`,
+      },
+    })
 
-export function readCache<T>(): T | null {
-  if (!fs.existsSync(CACHE_FILE)) {
+    if (!response.ok) {
+      console.error("Upstash Redis read error:", response.status, response.statusText)
+      return null
+    }
+
+    const result = await response.json()
+    if (result.result === null) {
+      return null
+    }
+
+    try {
+      return JSON.parse(result.result) as T
+    } catch {
+      console.error("Failed to parse cached data")
+      return null
+    }
+  } catch (error) {
+    console.error("Cache read error:", error)
     return null
   }
-
-  const cacheContent = fs.readFileSync(CACHE_FILE, "utf-8")
-  return JSON.parse(cacheContent) as T
 }
 
-export function writeCache<T>(data: T): void {
-  if (!fs.existsSync(CACHE_DIR)) {
-    fs.mkdirSync(CACHE_DIR, { recursive: true })
-  }
+export async function writeCache<T>(key: string, data: T): Promise<void> {
+  try {
+    if (!process.env.UPSTASH_REDIS_REST_URL || !process.env.UPSTASH_REDIS_REST_TOKEN) {
+      throw new Error("Upstash Redis environment variables are missing")
+    }
 
-  fs.writeFileSync(CACHE_FILE, JSON.stringify(data))
+    const response = await fetch(`${process.env.UPSTASH_REDIS_REST_URL}/set/${key}`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.UPSTASH_REDIS_REST_TOKEN}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify([JSON.stringify(data), "EX", CACHE_DURATION]),
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error("Upstash Redis write error:", response.status, response.statusText, errorText)
+      throw new Error(`Upstash Redis write failed: ${response.status} ${response.statusText} - ${errorText}`)
+    }
+
+    const result = await response.json()
+    if (result.error) {
+      console.error("Upstash Redis write error:", result.error)
+      throw new Error(`Upstash Redis write failed: ${result.error}`)
+    }
+  } catch (error) {
+    console.error("Cache write error:", error)
+    throw error
+  }
 }
 
